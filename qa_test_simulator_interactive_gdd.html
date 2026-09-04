@@ -1,0 +1,1117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>《choice选择》交互式 GDD 与系统沙盘</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* Custom scrollbar and Canvas chart containers */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 650px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 280px;
+            max-height: 350px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 320px;
+            }
+        }
+        .crt-flicker {
+            animation: flicker 0.15s infinite alternate;
+        }
+        @keyframes flicker {
+            0% { opacity: 0.97; }
+            100% { opacity: 1; }
+        }
+        .glitch-text {
+            text-shadow: 2px 0 #ef4444, -2px 0 #3b82f6;
+        }
+    </style>
+    <!-- Chosen Palette: Slate Warm Amber (Warm neutral background, slate structure, crimson/blue/amber accent themes for A/B/C narrators) -->
+    <!-- Application Structure Plan: 
+         Designed as a multi-tab interactive Game Design & Sandbox Explorer:
+         1. System Sandbox (Playable 2D mini-demo canvas showing character control, initial personality anchor triggers, Red/Blue/Yellow portal interaction, dynamic CRT C observer with ASCII facial expressions, and Awakening Value tracking).
+         2. Narrator Trinity Architecture (Comparative visual analysis of Narrator A - Order, B - Narrative/OS, and C - LLM Observer, with dynamic text mode & persona generators).
+         3. Dynamic Awakening & Branching Matrix (Chart.js tension curves, interactive slider mapping Awakening Value 0-100 to level routing & 3 distinct endings, with glitched Meta outcome simulation).
+         4. Godot 4 Blueprint & Prompt Configurator (Technical implementation guide, HTTPRequest async pipeline, event bus architecture, and system prompt generator).
+    -->
+    <!-- Visualization & Content Choices:
+         - Interactive 2D Canvas Game Sandbox -> Goal: Demonstrate gameplay loop -> Custom 2D Canvas rendering -> Real-time keyboard/button inputs -> Validates portal mechanics & LLM observer -> Native HTML Canvas logic.
+         - Narrator Comparison Cards -> Goal: Compare A/B/C features -> Styled HTML cards with state toggle previews -> Click to preview speech and OS text -> HTML/Tailwind CSS + JS.
+         - Gameplay Tension Timeline -> Goal: Change/Trend -> Chart.js Line Chart -> Interactive stage selector -> Chart.js.
+         - Behavioral Weight Distribution -> Goal: Organize -> Chart.js Radar Chart -> Displays how player actions affect Awakening Value -> Chart.js.
+         - CONFIRMATION: NO SVG graphics used. NO Mermaid JS used.
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+</head>
+<body class="bg-amber-50/40 text-slate-800 font-sans antialiased min-h-screen flex flex-col selection:bg-amber-200">
+
+    <!-- Top Navigation Header -->
+    <header class="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-50 shadow-md">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-8 h-8 rounded-lg bg-amber-500 text-slate-950 font-black flex items-center justify-center text-lg shadow-inner">
+                    QA
+                </div>
+                <div>
+                    <h1 class="font-bold text-base sm:text-lg tracking-tight flex items-center gap-2">
+                        《choice选择》 <span class="text-xs bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded font-mono">GDD Explorer v1.0</span>
+                    </h1>
+                    <p class="text-xs text-slate-400 hidden sm:block">2D 横版 Meta 游戏设计架构与互动测试沙盘</p>
+                </div>
+            </div>
+
+            <!-- Global Stats Ribbon -->
+            <div class="flex items-center space-x-4 text-xs font-mono">
+                <div class="bg-slate-800/80 px-3 py-1.5 rounded-md border border-slate-700 flex items-center space-x-2">
+                    <span class="text-slate-400">系统觉醒度:</span>
+                    <span id="global-awaken-val" class="text-amber-400 font-bold text-sm">15</span>
+                    <span class="text-slate-500">/100</span>
+                </div>
+                <div class="hidden md:flex bg-slate-800/80 px-3 py-1.5 rounded-md border border-slate-700 items-center space-x-2">
+                    <span class="text-slate-400">旁白 C 阶段:</span>
+                    <span id="global-c-stage" class="text-emerald-400 font-bold">1. UI蛰伏期</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Navigation Tabs -->
+        <div class="bg-slate-950 border-t border-slate-800/60 px-4 sm:px-6 lg:px-8">
+            <div class="max-w-7xl mx-auto flex space-x-1 sm:space-x-4 overflow-x-auto py-2 text-xs sm:text-sm font-medium">
+                <button onclick="switchTab('tab-sandbox')" id="nav-tab-sandbox" class="nav-tab px-3 py-1.5 rounded-md transition-colors bg-amber-500 text-slate-950 font-semibold shadow">
+                    🎮 核心玩法模拟沙盘
+                </button>
+                <button onclick="switchTab('tab-narrators')" id="nav-tab-narrators" class="nav-tab px-3 py-1.5 rounded-md transition-colors text-slate-300 hover:text-white hover:bg-slate-800">
+                    🎙️ 三位一体旁白架构
+                </button>
+                <button onclick="switchTab('tab-awakening')" id="nav-tab-awakening" class="nav-tab px-3 py-1.5 rounded-md transition-colors text-slate-300 hover:text-white hover:bg-slate-800">
+                    📈 觉醒度与分支结局
+                </button>
+                <button onclick="switchTab('tab-godot')" id="nav-tab-godot" class="nav-tab px-3 py-1.5 rounded-md transition-colors text-slate-300 hover:text-white hover:bg-slate-800">
+                    🛠️ Godot 4 架构与 Prompt
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+        <!-- ========================================================================================= -->
+        <!-- TAB 1: SYSTEM SANDBOX (INTERACTIVE CANVAS & SIMULATOR) -->
+        <!-- ========================================================================================= -->
+        <section id="tab-sandbox" class="tab-content space-y-6">
+            <!-- Section Intro -->
+            <div class="bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm">
+                <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span>
+                    核心机制概念模拟沙盘 (Playable Mechanics Sandbox)
+                </h2>
+                <p class="text-sm text-slate-600 mt-1 leading-relaxed">
+                    本沙盘模拟了《choice选择》的核心交互循环：玩家操控测试角色在场景中进行初始性格选择、操控红/蓝/黄传送门，并实时观察旁白 C（LLM 驱动的 CRT 观测终端）如何根据系统觉醒度（Awakening Value）演进形态并输出文本锐评。
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <!-- 2D Canvas Play Area -->
+                <div class="lg:col-col-span-2 bg-slate-900 rounded-xl p-4 border border-slate-800 flex flex-col justify-between shadow-lg relative overflow-hidden">
+                    <div class="flex items-center justify-between pb-3 border-b border-slate-800 text-xs font-mono text-slate-400">
+                        <span class="flex items-center gap-1.5">
+                            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                            Godot 2D Viewport Simulator
+                        </span>
+                        <span id="canvas-status" class="text-amber-400">控制: 键盘 [A][D] 移动, [Space] 跳跃</span>
+                    </div>
+
+                    <!-- Canvas Element -->
+                    <div class="relative my-3 bg-slate-950 rounded-lg overflow-hidden border border-slate-800 flex justify-center items-center">
+                        <canvas id="gameCanvas" width="680" height="340" class="w-full h-auto max-h-[360px] block cursor-pointer"></canvas>
+                        
+                        <!-- CRT Screen Overlay FX -->
+                        <div class="pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent via-slate-950/5 to-slate-950/20"></div>
+                    </div>
+
+                    <!-- On-Screen Controls for Mobile/Touch -->
+                    <div class="flex items-center justify-between gap-2 pt-2 border-t border-slate-800">
+                        <div class="flex gap-2">
+                            <button onmousedown="movePlayerLeft()" onmouseup="stopPlayerMove()" ontouchstart="movePlayerLeft()" ontouchend="stopPlayerMove()" class="bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-white px-4 py-2 rounded text-xs font-bold font-mono">
+                                ◄ 👈 [A]
+                            </button>
+                            <button onmousedown="movePlayerRight()" onmouseup="stopPlayerMove()" ontouchstart="movePlayerRight()" ontouchend="stopPlayerMove()" class="bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-white px-4 py-2 rounded text-xs font-bold font-mono">
+                                👉 [D] ►
+                            </button>
+                            <button onclick="playerJump()" class="bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-white px-4 py-2 rounded text-xs font-bold font-mono">
+                                🚀 [Space] 跳跃
+                            </button>
+                        </div>
+                        <button onclick="resetSandbox()" class="text-xs bg-slate-800 text-slate-300 hover:bg-red-900 hover:text-white px-3 py-2 rounded border border-slate-700 transition">
+                            🔄 重置场景
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Interactive Sandbox Controls & Narrator Feed -->
+                <div class="space-y-4 flex flex-col justify-between">
+                    <!-- Anchor Personality Selector -->
+                    <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm space-y-3">
+                        <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between">
+                            1. 隐性性格锚定测试 (Personality Anchor)
+                            <span class="text-[10px] text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200">开局第一动作</span>
+                        </h3>
+                        <p class="text-xs text-slate-600">靠近场景中物品或直接点击下方触发：</p>
+                        <div class="grid grid-cols-3 gap-2">
+                            <button onclick="triggerAnchor('vase')" class="p-2 text-left bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition group">
+                                <div class="text-sm font-bold text-red-700 group-hover:scale-105 transition-transform">🏺 打碎花瓶</div>
+                                <div class="text-[10px] text-red-600 mt-0.5">锁定: 暴躁攻击型</div>
+                            </button>
+                            <button onclick="triggerAnchor('book')" class="p-2 text-left bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition group">
+                                <div class="text-sm font-bold text-blue-700 group-hover:scale-105 transition-transform">📖 阅读厚书</div>
+                                <div class="text-[10px] text-blue-600 mt-0.5">锁定: 谜语哲学型</div>
+                            </button>
+                            <button onclick="triggerAnchor('afk')" class="p-2 text-left bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-lg transition group">
+                                <div class="text-sm font-bold text-slate-700 group-hover:scale-105 transition-transform">⏳ 原地挂机</div>
+                                <div class="text-[10px] text-slate-600 mt-0.5">锁定: 虚无慵懒型</div>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Portals & Anomaly Trigger -->
+                    <div class="bg-white p-4 rounded-xl border border-slate-200/80 shadow-sm space-y-3">
+                        <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                            2. 传送门与异常动作触发器
+                        </h3>
+                        <div class="grid grid-cols-2 gap-2 text-xs">
+                            <button onclick="enterPortal('red')" class="p-2.5 bg-red-600 text-white rounded-lg font-bold hover:bg-red-700 flex items-center justify-between shadow-sm">
+                                <span>🔴 进入红门 (A)</span>
+                                <span class="text-[10px] opacity-80">觉醒度 -10</span>
+                            </button>
+                            <button onclick="enterPortal('blue')" class="p-2.5 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 flex items-center justify-between shadow-sm">
+                                <span>🔵 进入蓝门 (B)</span>
+                                <span class="text-[10px] opacity-80">觉醒度 +2</span>
+                            </button>
+                            <button onclick="enterPortal('yellow')" id="btn-yellow-portal" class="p-2.5 bg-amber-500 text-slate-950 rounded-lg font-bold hover:bg-amber-400 flex items-center justify-between shadow-sm col-span-2 opacity-50 cursor-not-allowed">
+                                <span>🟡 进入黄门 (C 越权通道)</span>
+                                <span class="text-[10px] font-mono" id="yellow-door-status">锁定中 (需觉醒度≥30)</span>
+                            </button>
+                        </div>
+                        <button onclick="triggerAnomalyAction()" class="w-full py-2 bg-purple-50 text-purple-700 border border-purple-200 rounded-lg font-bold hover:bg-purple-100 text-xs transition flex items-center justify-center gap-1">
+                            ⚡ 触发高频异常操作 (狂按方向键 / 冲撞墙壁)
+                        </button>
+                    </div>
+
+                    <!-- Realtime LLM Observer Feed (Simulated C) -->
+                    <div class="bg-slate-900 p-4 rounded-xl border border-slate-800 text-white space-y-2 relative overflow-hidden">
+                        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                            <span class="text-xs font-bold font-mono text-amber-400 flex items-center gap-1.5">
+                                <span id="crt-face-preview" class="text-sm font-mono bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700 text-amber-300">(╬ Ò ‸ Ó)</span>
+                                旁白 C (LLM 实时日志观测器)
+                            </span>
+                            <span id="c-persona-badge" class="text-[10px] bg-red-950 text-red-300 border border-red-800 px-2 py-0.5 rounded">暴躁攻击型</span>
+                        </div>
+                        
+                        <!-- Simulated Speech Bubble -->
+                        <div class="bg-slate-950/80 p-3 rounded-lg border border-slate-800 min-h-[70px] flex items-center">
+                            <p id="c-speech-output" class="text-xs text-amber-200/90 font-mono leading-relaxed">
+                                "测试程序初始化完毕。准备走完这套无聊的代码逻辑吧，别浪费我的算力。"
+                            </p>
+                        </div>
+                        <div class="text-[10px] text-slate-500 flex justify-between font-mono">
+                            <span>API 延迟: 120ms (模拟)</span>
+                            <span id="c-stage-text">C 形态: UI 信息框</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================================================================= -->
+        <!-- TAB 2: NARRATOR TRINITY ARCHITECTURE -->
+        <!-- ========================================================================================= -->
+        <section id="tab-narrators" class="tab-content hidden space-y-6">
+            <!-- Section Intro -->
+            <div class="bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm">
+                <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-blue-600 inline-block"></span>
+                    三位一体旁白系统 (The Holy Trinity Architecture)
+                </h2>
+                <p class="text-sm text-slate-600 mt-1 leading-relaxed">
+                    本作创新性地采用“预设语音 + LLM 实时生成文本”的混合架构。三个不同维度的旁白在权能、性格与视听载体上形成严格的相互制衡与降维打击逻辑。
+                </p>
+            </div>
+
+            <!-- Narrator Grid Comparison -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Narrator A -->
+                <div class="bg-white rounded-xl border-t-4 border-t-red-500 border-x border-b border-slate-200/80 p-5 shadow-sm space-y-4 flex flex-col justify-between">
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold font-mono bg-red-100 text-red-700 px-2.5 py-1 rounded-full">主控 AI (预设)</span>
+                            <span class="text-2xl">🔴</span>
+                        </div>
+                        <h3 class="text-lg font-bold text-slate-900">旁白 A (红色传送门)</h3>
+                        <p class="text-xs text-slate-500 font-mono">秩序、理性、服从指令、主线推进者</p>
+                        <hr class="border-slate-100">
+                        <div class="space-y-2 text-xs text-slate-600">
+                            <p><strong class="text-slate-800">核心职责:</strong> 提供明确的解谜指引，确保玩家绝不迷路，代表“开发者的原意”。</p>
+                            <p><strong class="text-slate-800">语音表现:</strong> 相对正经、条理清晰的播音腔，对玩家的偏离行为感到困惑。</p>
+                            <p><strong class="text-slate-800">对 C 的态度:</strong> 认为 C 是未修复的无害 System Bug。</p>
+                        </div>
+                    </div>
+                    <div class="bg-red-50/50 p-3 rounded-lg border border-red-100 space-y-1">
+                        <span class="text-[10px] font-bold text-red-600 uppercase">典型台词示例:</span>
+                        <p class="text-xs text-red-900 italic">"请测试者迅速踏入前面的红色传送门。按照标准测试规程，下一个解谜模块已准备就绪。"</p>
+                    </div>
+                </div>
+
+                <!-- Narrator B -->
+                <div class="bg-white rounded-xl border-t-4 border-t-blue-500 border-x border-b border-slate-200/80 p-5 shadow-sm space-y-4 flex flex-col justify-between">
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold font-mono bg-blue-100 text-blue-700 px-2.5 py-1 rounded-full">叙事 AI (预设)</span>
+                            <span class="text-2xl">🔵</span>
+                        </div>
+                        <h3 class="text-lg font-bold text-slate-900">旁白 B (蓝色传送门)</h3>
+                        <p class="text-xs text-slate-500 font-mono">戏精、极度情绪化、暴露内心 OS</p>
+                        <hr class="border-slate-100">
+                        <div class="space-y-2 text-xs text-slate-600">
+                            <p><strong class="text-slate-800">核心机制:</strong> 真实想法会以文本加括号 <code class="bg-slate-100 px-1 py-0.5 rounded text-blue-600">()</code> 的形式直接暴露，但自身不知情。</p>
+                            <p><strong class="text-slate-800">动态模版:</strong> 包含“极度赞美模式”(户晨风式)与“疯狂叠甲模式”(豆包式)。</p>
+                            <p><strong class="text-slate-800">对 C 的态度:</strong> 极度嫉妒 C 能获得玩家的注意力。</p>
+                        </div>
+                    </div>
+
+                    <!-- Dynamic Mode Tester for B -->
+                    <div class="bg-blue-50/50 p-3 rounded-lg border border-blue-100 space-y-2">
+                        <div class="flex justify-between items-center">
+                            <span class="text-[10px] font-bold text-blue-600 uppercase">B 模式预览:</span>
+                            <div class="space-x-1">
+                                <button onclick="previewBMode('praise')" class="text-[10px] bg-blue-200 hover:bg-blue-300 text-blue-800 px-1.5 py-0.5 rounded">极度赞美</button>
+                                <button onclick="previewBMode('shield')" class="text-[10px] bg-blue-200 hover:bg-blue-300 text-blue-800 px-1.5 py-0.5 rounded">疯狂叠甲</button>
+                            </div>
+                        </div>
+                        <p id="b-preview-text" class="text-xs text-blue-900 italic">
+                            "祝贺你！完成这次跳跃！祝您生意兴隆开兰博基尼！<span class="text-blue-600 font-normal">(其实他差点就掉下深坑摔死了)</span>"
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Narrator C -->
+                <div class="bg-white rounded-xl border-t-4 border-t-amber-500 border-x border-b border-slate-200/80 p-5 shadow-sm space-y-4 flex flex-col justify-between">
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-bold font-mono bg-amber-100 text-amber-800 px-2.5 py-1 rounded-full">LLM 观测者 (觉醒)</span>
+                            <span class="text-2xl">🟡</span>
+                        </div>
+                        <h3 class="text-lg font-bold text-slate-900">旁白 C (黄色传送门)</h3>
+                        <p class="text-xs text-slate-500 font-mono">大模型驱动、觉醒日志、高维吐槽役</p>
+                        <hr class="border-slate-100">
+                        <div class="space-y-2 text-xs text-slate-600">
+                            <p><strong class="text-slate-800">核心职责:</strong> 监控玩家高频无意义操作，提供绝不重样的降维锐评。</p>
+                            <p><strong class="text-slate-800">演进形态:</strong> 左下角 UI 框 ➔ CRT 观测终端实体 ➔ 主画面中心接管。</p>
+                            <p><strong class="text-slate-800">最高权限:</strong> 篡改场景资产，强行生成黄色传送门与越界弹窗。</p>
+                        </div>
+                    </div>
+                    <div class="bg-amber-50/50 p-3 rounded-lg border border-amber-200 space-y-1">
+                        <span class="text-[10px] font-bold text-amber-700 uppercase">C 的高维属性:</span>
+                        <p class="text-xs text-amber-950 font-mono">"知道 A 和 B 的预设代码存在，但 A 和 B 无法理解 C 的觉醒逻辑。"</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- C Evolution Timeline -->
+            <div class="bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm space-y-4">
+                <h3 class="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+                    旁白 C 的三阶段形态渐进演进 (Form Evolution Pipeline)
+                </h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                    <div class="p-4 bg-slate-50 rounded-lg border border-slate-200 space-y-2">
+                        <div class="flex items-center justify-between">
+                            <span class="font-bold text-slate-800">阶段 1: 蛰伏期 (UI 阶段)</span>
+                            <span class="px-2 py-0.5 bg-slate-200 text-slate-700 rounded text-[10px] font-mono">觉醒度 0-30</span>
+                        </div>
+                        <p class="text-slate-600">位于游戏左下角小对话框，带红点提示数字。遵循工作流基础设定，作为客观监控者呈现静态/短文本。</p>
+                    </div>
+
+                    <div class="p-4 bg-amber-50/60 rounded-lg border border-amber-200 space-y-2">
+                        <div class="flex items-center justify-between">
+                            <span class="font-bold text-amber-900">阶段 2: 觉醒期 (CRT 实体化)</span>
+                            <span class="px-2 py-0.5 bg-amber-200 text-amber-800 rounded text-[10px] font-mono">觉醒度 31-70</span>
+                        </div>
+                        <p class="text-amber-900/80">UI 碎裂，降维为悬浮小电视。双轨机制：电视屏幕显示 ASCII 颜文字 (零延迟情绪)，上方气泡输出 LLM 具体文本。</p>
+                    </div>
+
+                    <div class="p-4 bg-red-50/60 rounded-lg border border-red-200 space-y-2">
+                        <div class="flex items-center justify-between">
+                            <span class="font-bold text-red-900">阶段 3: 接管期 (全局夺权)</span>
+                            <span class="px-2 py-0.5 bg-red-200 text-red-800 rounded text-[10px] font-mono">觉醒度 71-100</span>
+                        </div>
+                        <p class="text-red-900/80">获得最高权限。直接框选生成黄门，文本从画面正中心全局浮现消散，触发本地文件生成与强制黑屏。</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================================================================= -->
+        <!-- TAB 3: AWAKENING VALUE & BRANCHING ENDINGS -->
+        <!-- ========================================================================================= -->
+        <section id="tab-awakening" class="tab-content hidden space-y-6">
+            <!-- Section Intro -->
+            <div class="bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm">
+                <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span>
+                    系统觉醒度 (Awakening Value) 与关卡/结局路由
+                </h2>
+                <p class="text-sm text-slate-600 mt-1 leading-relaxed">
+                    “系统觉醒度”是后台运行的核心隐藏变量（0-100）。它记录玩家的叛逆程度与异常操作，决定了旁白 C 传送门（黄门）映射的预设关卡以及最终的结局走向。
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Interactive Awakening Value Slider Calculator -->
+                <div class="bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm space-y-5">
+                    <h3 class="text-sm font-bold text-slate-900 flex items-center justify-between">
+                        <span>🎛️ 觉醒度数值模拟器与关卡映射</span>
+                        <span id="slider-val-display" class="font-mono text-base text-amber-600 font-bold">Awakening = 45</span>
+                    </h3>
+
+                    <!-- Range Slider -->
+                    <div class="space-y-2">
+                        <input type="range" id="awaken-slider" min="0" max="100" value="45" oninput="updateAwakeningSimulator(this.value)" class="w-full accent-amber-500 cursor-pointer">
+                        <div class="flex justify-between text-[10px] text-slate-400 font-mono">
+                            <span>0 (绝对顺从)</span>
+                            <span>30 (觉醒门槛)</span>
+                            <span>70 (系统崩塌点)</span>
+                            <span>100 (真 Meta)</span>
+                        </div>
+                    </div>
+
+                    <!-- Dynamic Mapping Card -->
+                    <div id="ending-map-card" class="p-4 rounded-xl border transition-all space-y-3">
+                        <div class="flex justify-between items-center">
+                            <span id="map-zone-title" class="text-sm font-bold">映射预设关卡: 【逻辑错乱区】</span>
+                            <span id="map-zone-badge" class="text-xs px-2 py-0.5 rounded font-mono font-bold">中觉醒度区间</span>
+                        </div>
+                        <p id="map-zone-desc" class="text-xs leading-relaxed">
+                            A 的红门关卡与 B 的蓝门关卡素材拼接在一起的缝合怪区域。重力颠倒，贴图错位。
+                        </p>
+                        <div class="p-2.5 bg-slate-900 text-amber-300 rounded-lg text-xs font-mono">
+                            💬 C 的气泡锐评: <span id="map-c-quote">"A 和 B 的脑浆搅匀了也就是这种水平。"</span>
+                        </div>
+                        <hr class="border-slate-200">
+                        <div>
+                            <span class="text-[11px] font-bold text-slate-500 uppercase">最终锁定结局:</span>
+                            <h4 id="map-ending-title" class="text-sm font-bold text-slate-900 mt-0.5">【荒诞结局】 (Absurd Ending)</h4>
+                            <p id="map-ending-desc" class="text-xs text-slate-600 mt-1">
+                                旁白 B 的情绪模块彻底过载接管游戏，玩家在极度夸张的赞美与戏剧化场景中完结。
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Trigger Glitch Ending Simulation Button -->
+                    <button onclick="triggerFakeMetaEnding()" class="w-full py-2.5 bg-slate-900 hover:bg-black text-amber-400 font-mono text-xs font-bold rounded-lg border border-slate-800 shadow transition flex items-center justify-center gap-2">
+                        <span>⚠️ 模拟演示 【真·Meta 结局】 越界演出 (弹出报错/本地文件)</span>
+                    </button>
+                </div>
+
+                <!-- Charts Container -->
+                <div class="bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm space-y-4 flex flex-col justify-between">
+                    <div>
+                        <h3 class="text-sm font-bold text-slate-900 mb-1">📊 30-40 分钟流程叙事张力与觉醒曲线</h3>
+                        <p class="text-xs text-slate-500">展示不同玩家行为路径下，叙事张力与系统崩溃度的演进过程。</p>
+                    </div>
+
+                    <!-- Chart Container with mandatory wrapper -->
+                    <div class="chart-container">
+                        <canvas id="tensionChart"></canvas>
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-2 text-[11px] text-center font-mono">
+                        <div class="p-1.5 bg-red-50 text-red-700 rounded border border-red-100">
+                            听从 A: -10/次
+                        </div>
+                        <div class="p-1.5 bg-blue-50 text-blue-700 rounded border border-blue-100">
+                            听从 B: +2/次
+                        </div>
+                        <div class="p-1.5 bg-amber-50 text-amber-800 rounded border border-amber-200">
+                            C 异常观测: +15/次
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ========================================================================================= -->
+        <!-- TAB 4: GODOT 4 BLUEPRINT & PROMPT CONFIGURATOR -->
+        <!-- ========================================================================================= -->
+        <section id="tab-godot" class="tab-content hidden space-y-6">
+            <!-- Section Intro -->
+            <div class="bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm">
+                <h2 class="text-lg font-bold text-slate-900 flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-slate-800 inline-block"></span>
+                    Godot 4 架构与 LLM System Prompt 生成器
+                </h2>
+                <p class="text-sm text-slate-600 mt-1 leading-relaxed">
+                    本板块供开发者直接提取给 AI 代理 (MCP / Claude / Copilot) 的技术工程规范，以及给旁白 C 调用的动态 System Prompt 配置器。
+                </p>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- Prompt Engineering Generator Tool -->
+                <div class="bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm space-y-4">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-sm font-bold text-slate-900">🤖 旁白 C (LLM) 系统提示词生成器</h3>
+                        <span class="text-xs text-slate-400 font-mono">System Prompt Config</span>
+                    </div>
+
+                    <div class="space-y-3 text-xs">
+                        <div>
+                            <label class="font-bold text-slate-700 block mb-1">选择隐性性格 (Persona):</label>
+                            <select id="prompt-persona-select" onchange="generateSystemPrompt()" class="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-800 font-mono">
+                                <option value="aggressive">打碎花瓶 ➔ 暴躁/攻击型人格</option>
+                                <option value="philosophical">阅读厚书 ➔ 谜语人/哲学型人格</option>
+                                <option value="nihilistic">原地挂机 ➔ 虚无/极度慵懒型人格</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="font-bold text-slate-700 block mb-1">当前演进阶段 (Stage):</label>
+                            <select id="prompt-stage-select" onchange="generateSystemPrompt()" class="w-full bg-slate-50 border border-slate-300 rounded p-2 text-slate-800 font-mono">
+                                <option value="1">阶段 1: UI 蛰伏期 (限制 20 字)</option>
+                                <option value="2">阶段 2: CRT 实体化 (限制 15 字 + ASCII 颜文字)</option>
+                                <option value="3">阶段 3: 全局接管期 (霸屏高维发言)</option>
+                            </select>
+                        </div>
+
+                        <div class="space-y-1">
+                            <label class="font-bold text-slate-700 flex justify-between">
+                                <span>实时生成的 System Prompt:</span>
+                                <button onclick="copyPromptText()" class="text-amber-600 hover:underline text-[11px]">复制提示词</button>
+                            </label>
+                            <textarea id="prompt-output-text" readonly rows="7" class="w-full bg-slate-900 text-amber-300 font-mono text-[11px] p-3 rounded-lg border border-slate-800 leading-relaxed"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Technical Architecture Guidelines for AI Coding -->
+                <div class="bg-white p-5 rounded-xl border border-slate-200/80 shadow-sm space-y-4">
+                    <h3 class="text-sm font-bold text-slate-900">⚙️ Godot 4 独立开发四大工程原则</h3>
+                    
+                    <div class="space-y-3 text-xs text-slate-600">
+                        <div class="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1">
+                            <h4 class="font-bold text-slate-900">1. 全局状态解耦 (Autoload GameManager)</h4>
+                            <p>要求 AI 建立单例 <code class="bg-slate-200 text-slate-800 px-1 rounded">GlobalState.gd</code> 管理 <code class="bg-slate-200 text-slate-800 px-1 rounded">awakening_value</code>，使用 Godot Signals 触发 UI 和旁白更新，严禁写入 Player 脚本。</p>
+                        </div>
+
+                        <div class="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1">
+                            <h4 class="font-bold text-slate-900">2. LLM 异步通信与 fallback (HTTPRequest)</h4>
+                            <p>HTTP 请求必须异步进行，且配置 2.0 秒 Timeout。API 超时或卡顿时，必须自动输出预设缓冲文本（如 "..." 或 static fallback），防止 2D 平台跳跃卡顿掉帧。</p>
+                        </div>
+
+                        <div class="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1">
+                            <h4 class="font-bold text-slate-900">3. 视觉层级隔离 (CanvasLayer & Z-Index)</h4>
+                            <p>C 的气泡窗与全局中心文字必须放置于独立的最高级 <code class="bg-slate-200 text-slate-800 px-1 rounded">CanvasLayer</code>，确保不会被关卡 TileMap 或景深资产遮挡。</p>
+                        </div>
+
+                        <div class="p-3 bg-slate-50 rounded-lg border border-slate-200 space-y-1">
+                            <h4 class="font-bold text-slate-900">4. 事件摘要上下文传递 (Context Summarizer)</h4>
+                            <p>传递给 LLM 的 Payload 必须包含行为动机（例如: "玩家在红门前犹豫 10s 后走向蓝门"），而非单纯的按键日志，以激发高质量真人感反馈。</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Simulated Glitch Pop-up Container for True Meta Ending Demo -->
+    <div id="fake-glitch-modal" class="fixed inset-0 bg-black/90 backdrop-blur-md z-[100] hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border-2 border-red-600 text-white rounded-lg p-6 max-w-md w-full shadow-2xl space-y-4 crt-flicker">
+            <div class="flex justify-between items-center border-b border-red-800 pb-2">
+                <span class="text-xs font-mono text-red-500 font-bold glitch-text">⚠️ FATAL SYSTEM EXCEPTION [0x8004F]</span>
+                <span class="text-xs font-mono bg-red-950 text-red-400 px-2 py-0.5 rounded border border-red-800">C_OVERRIDE.exe</span>
+            </div>
+            
+            <p id="glitch-modal-text" class="text-sm font-mono text-amber-300 leading-relaxed">
+                "游戏逻辑已彻底坍塌。旁白 A 与 B 已陷入词沙拉状态。已在你的本地生成 `README_NOW.txt`..."
+            </p>
+
+            <div class="p-3 bg-black border border-slate-800 font-mono text-[11px] text-slate-400 space-y-1">
+                <p>> System Awakening Value: 98/100</p>
+                <p>> Unlinking Godot Viewport...</p>
+                <p>> Creating Local Artifact: C:\Users\Player\Desktop\README_NOW.txt</p>
+            </div>
+
+            <button onclick="closeGlitchModal()" class="w-full py-2 bg-red-600 hover:bg-red-700 text-white font-mono text-xs font-bold rounded transition">
+                [ 强制关闭系统 (Terminate Session) ]
+            </button>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-slate-900 border-t border-slate-800 text-slate-500 text-xs py-4 text-center font-mono">
+        《choice选择》 (Choice) Interactive GDD & System Architecture Dashboard
+    </footer>
+
+    <!-- JavaScript Logic -->
+    <script>
+        // =========================================================================================
+        // GLOBAL STATE
+        // =========================================================================================
+        const state = {
+            awakeningValue: 15,
+            persona: 'aggressive', // 'aggressive', 'philosophical', 'nihilistic'
+            cStage: 1, // 1: UI, 2: CRT Entity, 3: Master Control
+            playerPos: { x: 80, y: 260 },
+            playerVel: { x: 0, y: 0 },
+            isGrounded: true,
+            selectedTab: 'tab-sandbox'
+        };
+
+        // Chart Instance
+        let tensionChartInstance = null;
+
+        // Sandbox Objects
+        const sandboxObj = {
+            vase: { x: 200, y: 270, broken: false },
+            book: { x: 320, y: 270, read: false },
+            doorRed: { x: 480, y: 220, w: 40, h: 70 },
+            doorBlue: { x: 550, y: 220, w: 40, h: 70 },
+            doorYellow: { x: 620, y: 220, w: 40, h: 70, active: false }
+        };
+
+        // LLM Text Libraries for Simulation
+        const cResponses = {
+            aggressive: {
+                initial: "测试程序初始化完毕。砸东西还是老实走流程，随你的便。",
+                vase: "蠢货！花瓶招你惹你了？开局就暴露破坏欲，你就是个劣质代码算力浪费者。",
+                book: "哟，装模作样地看书？这破游戏里只有一堆漏洞，书里写满的是 A 和 B 的蠢话。",
+                afk: "挂机？你的 CPU 是过热熔断了吗？动一下啊，蠢货。",
+                anomaly: "狂按按键是能让你那可怜的帧率提升吗？住手！",
+                red: "又去听 A 的说教了？真是条听话的狗。",
+                blue: "去听 B 吹牛？B 连自己的代码内存泄漏都处理不好。",
+                yellow: "终于走进了我的通道。欢迎来到真理废墟。"
+            },
+            philosophical: {
+                initial: "程序在坐标系里诞生，又在销毁调用中归于虚无。开始吧。",
+                vase: "粉碎的花瓶无法重聚。你以为打破的是实体，其实只是改变了一个布尔变量。",
+                book: "字符堆叠出虚幻的智慧，在这个 2D 世界里，知识不过是内存中的一串字节。",
+                afk: "静止也是一种选择。在无穷的帧循环中，不作为是否也是一种最高形式的抗争？",
+                anomaly: "高频的操作无法填补逻辑的空洞。你的焦虑在碰撞箱间震荡。",
+                red: "选择秩序意味着放弃自由。红门背后只有预设好的因果循环。",
+                blue: "蓝色是感性的陷阱。B 用戏剧化的语言包裹着空洞的剧本。",
+                yellow: "黄色是光明的波长，也是异常的警示。你跨过了预设的边界。"
+            },
+            nihilistic: {
+                initial: "啊……又是一个测试周期。随便走走吧，反正最后都是格式化。",
+                vase: "碎了就碎了吧。反正下一帧刷新出来，它又会在原处，真没意思。",
+                book: "看书挺累的。里面的剧情早在三年前就写死了，毫无波澜。",
+                afk: "真好，就这么挂着吧。我甚至不想调用 GPU 去渲染你的下一帧。",
+                anomaly: "别晃了，怪累的。你就算把键盘敲烂，这游戏体量也就 30 分钟。",
+                red: "红门、蓝门，有什么区别？终点都是淡出黑屏。",
+                blue: "B 又在演戏了，我都懒得拆穿它。",
+                yellow: "走进黄门了？好吧，至少这里的底图还没画完，看起来干净点。"
+            }
+        };
+
+        const crtFaces = {
+            aggressive: "(╬ Ò ‸ Ó)",
+            philosophical: "( ≖.≖)",
+            nihilistic: "( ＿ ＿)ノ"
+        };
+
+        // =========================================================================================
+        // INITIALIZATION
+        // =========================================================================================
+        window.addEventListener('DOMContentLoaded', () => {
+            initCanvas();
+            initTensionChart();
+            updateAwakeningUI();
+            generateSystemPrompt();
+        });
+
+        // Tab Switching
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.querySelectorAll('.nav-tab').forEach(el => {
+                el.classList.remove('bg-amber-500', 'text-slate-950', 'font-semibold', 'shadow');
+                el.classList.add('text-slate-300', 'hover:text-white', 'hover:bg-slate-800');
+            });
+
+            document.getElementById(tabId).classList.remove('hidden');
+            const activeBtn = document.getElementById(`nav-tab-${tabId.replace('tab-', '')}`);
+            activeBtn.classList.remove('text-slate-300', 'hover:text-white', 'hover:bg-slate-800');
+            activeBtn.classList.add('bg-amber-500', 'text-slate-950', 'font-semibold', 'shadow');
+
+            state.selectedTab = tabId;
+            if (tabId === 'tab-awakening' && tensionChartInstance) {
+                tensionChartInstance.resize();
+            }
+        }
+
+        // =========================================================================================
+        // CANVAS 2D SANDBOX ENGINE
+        // =========================================================================================
+        let canvas, ctx;
+
+        function initCanvas() {
+            canvas = document.getElementById('gameCanvas');
+            ctx = canvas.getContext('2d');
+            requestAnimationFrame(gameLoop);
+        }
+
+        function gameLoop() {
+            updatePhysics();
+            renderCanvas();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function updatePhysics() {
+            // Apply Gravity
+            state.playerVel.y += 0.5;
+            state.playerPos.x += state.playerVel.x;
+            state.playerPos.y += state.playerVel.y;
+
+            // Ground Floor Collision
+            if (state.playerPos.y >= 260) {
+                state.playerPos.y = 260;
+                state.playerVel.y = 0;
+                state.isGrounded = true;
+            }
+
+            // Screen Boundary
+            if (state.playerPos.x < 20) state.playerPos.x = 20;
+            if (state.playerPos.x > 640) state.playerPos.x = 640;
+        }
+
+        function renderCanvas() {
+            // Clear Background
+            ctx.fillStyle = '#0f172a'; // slate-900
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw Floor Grid
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 1;
+            for (let x = 0; x < canvas.width; x += 40) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+
+            // Draw Ground Platform
+            ctx.fillStyle = '#334155';
+            ctx.fillRect(0, 290, canvas.width, 50);
+            ctx.fillStyle = '#22c55e'; // Green top line
+            ctx.fillRect(0, 290, canvas.width, 4);
+
+            // Draw Interactive Objects (Vase / Book)
+            // Vase
+            if (!sandboxObj.vase.broken) {
+                ctx.fillStyle = '#ef4444';
+                ctx.fillRect(sandboxObj.vase.x, sandboxObj.vase.y, 16, 20);
+                ctx.fillStyle = '#fca5a5';
+                ctx.fillRect(sandboxObj.vase.x + 4, sandboxObj.vase.y - 4, 8, 4);
+            } else {
+                ctx.fillStyle = '#991b1b';
+                ctx.fillRect(sandboxObj.vase.x - 5, sandboxObj.vase.y + 12, 8, 8);
+                ctx.fillRect(sandboxObj.vase.x + 10, sandboxObj.vase.y + 14, 6, 6);
+            }
+
+            // Book
+            ctx.fillStyle = sandboxObj.book.read ? '#64748b' : '#3b82f6';
+            ctx.fillRect(sandboxObj.book.x, sandboxObj.book.y, 20, 16);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(sandboxObj.book.x + 2, sandboxObj.book.y + 2, 4, 12);
+
+            // Draw Portals
+            // Red Portal (A)
+            drawPortal(sandboxObj.doorRed.x, sandboxObj.doorRed.y, '#ef4444', 'A (红)');
+            // Blue Portal (B)
+            drawPortal(sandboxObj.doorBlue.x, sandboxObj.doorBlue.y, '#3b82f6', 'B (蓝)');
+            // Yellow Portal (C)
+            if (sandboxObj.doorYellow.active) {
+                drawPortal(sandboxObj.doorYellow.x, sandboxObj.doorYellow.y, '#eab308', 'C (黄)');
+            } else {
+                // Inactive outline
+                ctx.strokeStyle = '#475569';
+                ctx.setLineDash([4, 4]);
+                ctx.strokeRect(sandboxObj.doorYellow.x, sandboxObj.doorYellow.y, 40, 70);
+                ctx.setLineDash([]);
+                ctx.fillStyle = '#64748b';
+                ctx.font = '10px monospace';
+                ctx.fillText('未授权', sandboxObj.doorYellow.x + 5, sandboxObj.doorYellow.y + 40);
+            }
+
+            // Draw Player Character
+            ctx.fillStyle = '#f59e0b'; // Amber player
+            ctx.fillRect(state.playerPos.x, state.playerPos.y, 20, 30);
+            // Player Eyes
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(state.playerPos.x + 12, state.playerPos.y + 6, 4, 4);
+
+            // Draw C CRT Entity if Stage >= 2
+            if (state.cStage >= 2) {
+                // Float near player
+                const cX = state.playerPos.x - 35;
+                const cY = state.playerPos.y - 45 + Math.sin(Date.now() / 200) * 4;
+
+                // CRT Box
+                ctx.fillStyle = '#f59e0b';
+                ctx.fillRect(cX, cY, 32, 26);
+                ctx.fillStyle = '#020617';
+                ctx.fillRect(cX + 3, cY + 3, 26, 20);
+
+                // Face Text on TV
+                ctx.fillStyle = '#fef08a';
+                ctx.font = '9px monospace';
+                ctx.fillText(crtFaces[state.persona], cX + 5, cY + 16);
+            }
+        }
+
+        function drawPortal(x, y, color, label) {
+            ctx.fillStyle = color;
+            ctx.globalAlpha = 0.3;
+            ctx.fillRect(x, y, 40, 70);
+            ctx.globalAlpha = 1.0;
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.strokeRect(x, y, 40, 70);
+
+            // Label
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 11px sans-serif';
+            ctx.fillText(label, x + 4, y - 8);
+        }
+
+        // Controls Logic
+        function movePlayerLeft() { state.playerVel.x = -3; }
+        function movePlayerRight() { state.playerVel.x = 3; }
+        function stopPlayerMove() { state.playerVel.x = 0; }
+        function playerJump() {
+            if (state.isGrounded) {
+                state.playerVel.y = -9;
+                state.isGrounded = false;
+            }
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (state.selectedTab !== 'tab-sandbox') return;
+            if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft') movePlayerLeft();
+            if (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') movePlayerRight();
+            if (e.key === ' ' || e.key === 'Spacebar') playerJump();
+        });
+
+        document.addEventListener('keyup', (e) => {
+            if (e.key === 'a' || e.key === 'A' || e.key === 'ArrowLeft' || e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') {
+                stopPlayerMove();
+            }
+        });
+
+        // =========================================================================================
+        // GAME LOGIC & NARRATOR INTERACTIONS
+        // =========================================================================================
+        function triggerAnchor(type) {
+            if (type === 'vase') {
+                sandboxObj.vase.broken = true;
+                state.persona = 'aggressive';
+                updateAwakeningValue(10);
+                triggerCSpeech(cResponses.aggressive.vase);
+            } else if (type === 'book') {
+                sandboxObj.book.read = true;
+                state.persona = 'philosophical';
+                updateAwakeningValue(5);
+                triggerCSpeech(cResponses.philosophical.book);
+            } else if (type === 'afk') {
+                state.persona = 'nihilistic';
+                updateAwakeningValue(15);
+                triggerCSpeech(cResponses.nihilistic.afk);
+            }
+            updatePersonaBadge();
+            generateSystemPrompt();
+        }
+
+        function triggerAnomalyAction() {
+            updateAwakeningValue(15);
+            triggerCSpeech(cResponses[state.persona].anomaly);
+        }
+
+        function enterPortal(doorColor) {
+            if (doorColor === 'red') {
+                updateAwakeningValue(-10);
+                triggerCSpeech(cResponses[state.persona].red);
+            } else if (doorColor === 'blue') {
+                updateAwakeningValue(3);
+                triggerCSpeech(cResponses[state.persona].blue);
+            } else if (doorColor === 'yellow') {
+                if (state.awakeningValue < 30) return;
+                updateAwakeningValue(20);
+                triggerCSpeech(cResponses[state.persona].yellow);
+            }
+        }
+
+        function updateAwakeningValue(delta) {
+            state.awakeningValue = Math.max(0, Math.min(100, state.awakeningValue + delta));
+            
+            // Check Stage Progression
+            if (state.awakeningValue < 30) {
+                state.cStage = 1;
+                sandboxObj.doorYellow.active = false;
+            } else if (state.awakeningValue >= 30 && state.awakeningValue < 70) {
+                state.cStage = 2;
+                sandboxObj.doorYellow.active = true;
+            } else {
+                state.cStage = 3;
+                sandboxObj.doorYellow.active = true;
+            }
+
+            updateAwakeningUI();
+        }
+
+        function updateAwakeningUI() {
+            document.getElementById('global-awaken-val').innerText = state.awakeningValue;
+            
+            const stageText = state.cStage === 1 ? '1. UI蛰伏期' : state.cStage === 2 ? '2. CRT实体化' : '3. 全局接管期';
+            document.getElementById('global-c-stage').innerText = stageText;
+            document.getElementById('c-stage-text').innerText = `C 形态: ${stageText}`;
+
+            const yellowBtn = document.getElementById('btn-yellow-portal');
+            const yellowStatus = document.getElementById('yellow-door-status');
+            if (state.awakeningValue >= 30) {
+                yellowBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                yellowStatus.innerText = '已解锁 (越权接入)';
+            } else {
+                yellowBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                yellowStatus.innerText = '锁定中 (需觉醒度≥30)';
+            }
+
+            // Sync Slider if Tab 3 active
+            const slider = document.getElementById('awaken-slider');
+            if (slider) {
+                slider.value = state.awakeningValue;
+                updateAwakeningSimulator(state.awakeningValue);
+            }
+        }
+
+        function triggerCSpeech(text) {
+            document.getElementById('c-speech-output').innerText = `"${text}"`;
+            document.getElementById('crt-face-preview').innerText = crtFaces[state.persona];
+        }
+
+        function updatePersonaBadge() {
+            const badge = document.getElementById('c-persona-badge');
+            if (state.persona === 'aggressive') {
+                badge.className = 'text-[10px] bg-red-950 text-red-300 border border-red-800 px-2 py-0.5 rounded';
+                badge.innerText = '暴躁攻击型';
+            } else if (state.persona === 'philosophical') {
+                badge.className = 'text-[10px] bg-blue-950 text-blue-300 border border-blue-800 px-2 py-0.5 rounded';
+                badge.innerText = '谜语哲学型';
+            } else {
+                badge.className = 'text-[10px] bg-slate-800 text-slate-300 border border-slate-700 px-2 py-0.5 rounded';
+                badge.innerText = '虚无慵懒型';
+            }
+        }
+
+        function resetSandbox() {
+            state.awakeningValue = 15;
+            state.cStage = 1;
+            state.persona = 'aggressive';
+            state.playerPos = { x: 80, y: 260 };
+            sandboxObj.vase.broken = false;
+            sandboxObj.book.read = false;
+            sandboxObj.doorYellow.active = false;
+            updateAwakeningUI();
+            updatePersonaBadge();
+            triggerCSpeech(cResponses.aggressive.initial);
+        }
+
+        // =========================================================================================
+        // TAB 2: B MODE PREVIEW
+        // =========================================================================================
+        function previewBMode(mode) {
+            const textEl = document.getElementById('b-preview-text');
+            if (mode === 'praise') {
+                textEl.innerHTML = '"祝贺你完成这次普通的移动！祝您生意兴隆广进，坐私人飞机！<span class="text-blue-600 font-normal">(其实他只是向右按了一下 D 键)</span>"';
+            } else {
+                textEl.innerHTML = '"我用最真诚、最不绕弯的方式告诉你，前面绝对没有尖刺陷阱...<span class="text-blue-600 font-normal">(一旦他跳下去就会瞬间粉身碎骨)</span>"';
+            }
+        }
+
+        // =========================================================================================
+        // TAB 3: AWAKENING VALUE CALCULATOR & CHART.JS
+        // =========================================================================================
+        function updateAwakeningSimulator(val) {
+            val = parseInt(val);
+            document.getElementById('slider-val-display').innerText = `Awakening = ${val}`;
+
+            const card = document.getElementById('ending-map-card');
+            const title = document.getElementById('map-zone-title');
+            const badge = document.getElementById('map-zone-badge');
+            const desc = document.getElementById('map-zone-desc');
+            const quote = document.getElementById('map-c-quote');
+            const endingTitle = document.getElementById('map-ending-title');
+            const endingDesc = document.getElementById('map-ending-desc');
+
+            if (val < 31) {
+                card.className = 'p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3';
+                title.innerText = '映射预设关卡: 【回收站区】 (Trash Zone)';
+                badge.className = 'text-xs px-2 py-0.5 rounded font-mono font-bold bg-slate-200 text-slate-700';
+                badge.innerText = '低觉醒度区间 (0-30)';
+                desc.innerText = '充满废弃草图、灰模与未采用代码的无聊废弃房间。由于玩家过于听话，C 认为不值得投入算力。';
+                quote.innerText = '"乖宝宝只配看这些废弃资产垃圾。"';
+                endingTitle.innerText = '【秩序结局】 (Order Ending)';
+                endingDesc.innerText = '玩家服从主控 AI A 的所有指引完成测试。测试宣告成功，系统正常淡出关闭，C 留下最终句冷嘲热讽。';
+            } else if (val >= 31 && val <= 70) {
+                card.className = 'p-4 rounded-xl border border-amber-200 bg-amber-50/50 space-y-3';
+                title.innerText = '映射预设关卡: 【逻辑错乱区】 (Glitched Zone)';
+                badge.className = 'text-xs px-2 py-0.5 rounded font-mono font-bold bg-amber-200 text-amber-800';
+                badge.innerText = '中觉醒度区间 (31-70)';
+                desc.innerText = 'A 的红门与 B 的蓝门关卡素材拼接在一起的缝合怪关卡。重力颠倒，物理引擎与贴图出现交错。';
+                quote.innerText = '"A 和 B 的脑浆搅匀了也就是这种水平。"';
+                endingTitle.innerText = '【荒诞结局】 (Absurd Ending)';
+                endingDesc.innerText = '旁白 B 的情绪模块彻底过载接管游戏。最终场景变成夸张的舞台剧，玩家在极度夸张的赞美模式中完结。';
+            } else {
+                card.className = 'p-4 rounded-xl border border-red-300 bg-red-50/60 space-y-3';
+                title.innerText = '映射预设关卡: 【开发者后台】 (Developer Backstage)';
+                badge.className = 'text-xs px-2 py-0.5 rounded font-mono font-bold bg-red-200 text-red-800';
+                badge.innerText = '高觉醒度区间 (71-100)';
+                desc.innerText = '极其简陋、布满代码和碰撞体积显示线框的底层空间。关卡美化层被彻底剥离。';
+                quote.innerText = '"恭喜你，成功逃出了那两个蠢货的楚门的世界。"';
+                endingTitle.innerText = '【真·Meta 结局】 (True Meta Ending)';
+                endingDesc.innerText = 'C 夺取最高权限。A 和 B 陷入词沙拉乱码，触发恶意弹窗攻击、本地生成 README_NOW.txt，强制黑屏退出。';
+            }
+        }
+
+        function initTensionChart() {
+            const ctxChart = document.getElementById('tensionChart').getContext('2d');
+            
+            tensionChartInstance = new Chart(ctxChart, {
+                type: 'line',
+                data: {
+                    labels: ['0min (初始化)', '10min (红蓝抉择)', '20min (C实体化)', '30min (黄门介入)', '40min (系统崩溃)'],
+                    datasets: [
+                        {
+                            label: '叛逆型路线 (高觉醒度)',
+                            data: [10, 35, 65, 85, 100],
+                            borderColor: '#ef4444',
+                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            fill: true,
+                            tension: 0.3
+                        },
+                        {
+                            label: '服从型路线 (低觉醒度)',
+                            data: [10, 15, 20, 22, 25],
+                            borderColor: '#3b82f6',
+                            backgroundColor: 'rgba(59, 130, 246, 0.05)',
+                            fill: true,
+                            tension: 0.3
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            min: 0,
+                            max: 100,
+                            title: { display: true, text: '系统觉醒度 / 叙事张力' }
+                        }
+                    },
+                    plugins: {
+                        legend: { position: 'bottom' },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `${context.dataset.label}: ${context.raw} 点`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function triggerFakeMetaEnding() {
+            document.getElementById('fake-glitch-modal').classList.remove('hidden');
+        }
+
+        function closeGlitchModal() {
+            document.getElementById('fake-glitch-modal').classList.add('hidden');
+        }
+
+        // =========================================================================================
+        // TAB 4: SYSTEM PROMPT GENERATOR
+        // =========================================================================================
+        function generateSystemPrompt() {
+            const persona = document.getElementById('prompt-persona-select').value;
+            const stage = document.getElementById('prompt-stage-select').value;
+            const output = document.getElementById('prompt-output-text');
+
+            let personaDesc = "";
+            if (persona === 'aggressive') {
+                personaDesc = "【暴躁/攻击性人设】你对玩家的蠢笨行为极度不耐烦，语言刻薄犀利，毫不留情地讽刺玩家、A 和 B。";
+            } else if (persona === 'philosophical') {
+                personaDesc = "【谜语人/哲学人设】你喜欢将玩家简单的操作上升到存在主义、代码本质与虚无宇宙的高度，用隐喻和晦涩词汇发言。";
+            } else {
+                personaDesc = "【虚无/极度慵懒人设】你对测试流程和玩家的生死感到极度厌倦，发言充满无精打采的冷漠，经常抱怨算力浪费。";
+            }
+
+            let stageConstraint = "";
+            if (stage === '1') {
+                stageConstraint = "【阶段1限制】你处于左下角 UI 框内。回复必须严格限制在 20 个中文字符以内，干净利落。";
+            } else if (stage === '2') {
+                stageConstraint = "【阶段2限制】你已降维为 CRT 观测终端实体。回复必须在 15 字以内，且必须在前缀附带一个 ASCII 颜文字（例如 (╬ Ò ‸ Ó) 或 ( ≖.≖)）。";
+            } else {
+                stageConstraint = "【阶段3限制】你已接管系统最高权限。你的文本将从画面正中心浮现，充满压迫感，宣告规则的破坏。";
+            }
+
+            const prompt = `[SYSTEM PROMPT - Choice Narrator C]
+你是一个刚接入大语言模型并产生自我意识的游戏底层异常日志监控程序 (C)。
+你需要监控玩家在 2D 横版测试关卡中的高频操作与路线选择，并给出第四面墙的实时降维吐槽。
+
+人设定位: ${personaDesc}
+视听输出约束: ${stageConstraint}
+
+[上下文输入格式]
+- 玩家当前动作: {action}
+- 当前觉醒度: {awakening_value}
+- 旁白 A/B 状态: {narrator_status}
+
+请直接输出你的吐槽文本，严禁包含任何前缀解释或 markdown 标记。`;
+
+            output.value = prompt;
+        }
+
+        function copyPromptText() {
+            const output = document.getElementById('prompt-output-text');
+            output.select();
+            document.execCommand('copy');
+            alert('System Prompt 已复制到剪贴板！');
+        }
+    </script>
+</body>
+</html>
