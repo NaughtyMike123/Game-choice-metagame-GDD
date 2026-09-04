@@ -24,7 +24,7 @@
 | 内容 | 链接 |
 |------|------|
 | 📄 游戏设计文档 (GDD) | [GDD.md](./GDD.md) |
-| 🎮 交互式玩法沙盘（在线体验） | [GitHub Pages](https://naughtymike123.github.io/CHIOCE-GDD/interactive-sandbox/) |
+| 🎮 交互式玩法沙盘（在线体验） | [GitHub Pages](https://naughtymike123.github.io/Game-choice-metagame-GDD/interactive-sandbox/) |
 | 📂 交互式沙盘源码 | [interactive-sandbox/](./interactive-sandbox/) |
 
 > 💡 推荐先体验「交互式玩法沙盘」，可直接在浏览器中操作角色、触发机制、体验觉醒度系统与多结局路由。
